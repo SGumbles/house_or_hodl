@@ -1,6 +1,12 @@
-use iced::{Element, Length, Alignment, Padding};
-use iced::widget::{column, row, text, text_input, container, space, scrollable};
+use iced::{Alignment, Element, Font, Length, Pixels};
+use iced::widget::{column, row, text, text_input, container, scrollable};
 use iced::Task;
+
+const SANS_FONT_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Regular.ttf");
+const MONO_FONT_BYTES: &[u8] = include_bytes!("../fonts/MapleMono-Regular.ttf");
+
+const SANS_FONT: Font = Font::with_name("IBM Plex Sans");
+const MONO_FONT: Font = Font::with_name("Maple Mono");
 
 fn main() -> iced::Result {
     iced::application(
@@ -8,6 +14,9 @@ fn main() -> iced::Result {
         HouseOrHodl::update,
         HouseOrHodl::view,
     )
+    .font(SANS_FONT_BYTES)
+    .font(MONO_FONT_BYTES)
+    .default_font(SANS_FONT)
     .run()
 }
 
@@ -53,7 +62,6 @@ impl HouseOrHodl {
                     Self::header(),
                     Self::input_section(&self.mortgage_input, &self.interest_input),
                     Self::summary_section(self),
-                    Self::charts_section(self),
                     Self::table_section(self),
                 ]
                 .spacing(0)
@@ -61,8 +69,8 @@ impl HouseOrHodl {
             )
             .height(Length::Fill)
         )
-        .width(Length::Fill)
-        .height(Length::Fill)
+        .width(Pixels(1200.0))
+        .height(Pixels(1200.0))
         .into()
     }
 
@@ -74,12 +82,7 @@ impl HouseOrHodl {
             ]
             .spacing(5)
         )
-        .padding(Padding {
-            top: 30.0,
-            right: 30.0,
-            bottom: 20.0,
-            left: 30.0,
-        })
+        .padding(20)
         .width(Length::Fill)
         .into()
     }
@@ -156,38 +159,6 @@ impl HouseOrHodl {
         }
     }
 
-    fn charts_section(&self) -> Element<'_, Message> {
-        let mortgage: f64 = self.mortgage_input.parse().unwrap_or(0.0);
-        let annual_rate: f64 = self.interest_input.parse().unwrap_or(0.0);
-
-        let (monthly_payment, total_interest, amortization) =
-            if mortgage > 0.0 && annual_rate > 0.0 {
-                calculate_mortgage(mortgage, annual_rate, 360)
-            } else {
-                (0.0, 0.0, vec![])
-            };
-
-        if !amortization.is_empty() {
-            container(
-                column![
-                    text("Payment Analysis").size(16),
-                    row![
-                        build_principal_vs_interest_chart(&amortization),
-                        build_balance_chart(&amortization),
-                    ]
-                    .spacing(15),
-                    build_payment_composition_chart(monthly_payment, total_interest),
-                ]
-                .spacing(15)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .into()
-        } else {
-            container(column![]).padding(20).width(Length::Fill).into()
-        }
-    }
-
     fn table_section(&self) -> Element<'_, Message> {
         let mortgage: f64 = self.mortgage_input.parse().unwrap_or(0.0);
         let annual_rate: f64 = self.interest_input.parse().unwrap_or(0.0);
@@ -200,62 +171,30 @@ impl HouseOrHodl {
             };
 
         if !amortization.is_empty() {
+            // Pre-format the entire table as a single string to avoid thousands of widgets.
+            // Header + 360 rows × ~60 chars ≈ 22 KB — one text widget instead of ~3,600.
+            let mut table = String::with_capacity(amortization.len() * 64 + 80);
+            table.push_str(&format!(
+                "{:>5}  {:>11}  {:>11}  {:>10}  {:>12}\n",
+                "Month", "Payment", "Principal", "Interest", "Balance"
+            ));
+            for p in &amortization {
+                table.push_str(&format!(
+                    "{:>5}  ${:>10.2}  ${:>10.2}  ${:>9.2}  ${:>11.2}\n",
+                    p.month, p.payment, p.principal, p.interest, p.balance
+                ));
+            }
+
             container(
                 column![
                     text("Amortization Schedule").size(16),
-                    text(format!("All {} months of 30-year mortgage", amortization.len())).size(11),
-                    // Column Headers
-                    row![
-                        container(text("Month").size(12))
-                            .width(Length::Fixed(60.0))
-                            .padding(4),
-                        container(text("Payment").size(12))
-                            .width(Length::Fixed(110.0))
-                            .padding(4),
-                        container(text("Principal").size(12))
-                            .width(Length::Fixed(110.0))
-                            .padding(4),
-                        container(text("Interest").size(12))
-                            .width(Length::Fixed(100.0))
-                            .padding(4),
-                        container(text("Balance").size(12))
-                            .width(Length::Fixed(110.0))
-                            .padding(4),
-                    ]
-                    .spacing(0),
-                    // Table rows with scrollable content
-                    scrollable(
-                        column(
-                            amortization
-                                .iter()
-                                .map(|payment| {
-                                    row![
-                                        container(text(format!("{:>4}", payment.month)).size(11))
-                                            .width(Length::Fixed(60.0))
-                                            .padding(4),
-                                        container(text(format!("${:>10.2}", payment.payment)).size(11))
-                                            .width(Length::Fixed(110.0))
-                                            .padding(4),
-                                        container(text(format!("${:>10.2}", payment.principal)).size(11))
-                                            .width(Length::Fixed(110.0))
-                                            .padding(4),
-                                        container(text(format!("${:>9.2}", payment.interest)).size(11))
-                                            .width(Length::Fixed(100.0))
-                                            .padding(4),
-                                        container(text(format!("${:>10.2}", payment.balance)).size(11))
-                                            .width(Length::Fixed(110.0))
-                                            .padding(4),
-                                    ]
-                                    .spacing(0)
-                                    .into()
-                                })
-                                .collect::<Vec<_>>()
-                        )
-                        .spacing(0)
-                    )
-                    .height(Length::Fixed(400.0))
+                    text(format!(
+                        "All {} months of 30-year mortgage",
+                        amortization.len()
+                    ))
+                    .size(12),
+                    text(table).size(10).font(MONO_FONT)
                 ]
-                .spacing(10)
             )
             .padding(20)
             .width(Length::Fill)
@@ -330,165 +269,6 @@ fn calculate_mortgage(
     (monthly_payment, total_interest, schedule)
 }
 
-/// Creates a visual chart showing principal vs interest breakdown over time (sample of 120 months)
-fn build_principal_vs_interest_chart(amortization: &[PaymentRecord]) -> Element<'static, Message> {
-    let sample_interval = (amortization.len() / 120).max(1);
-    let samples: Vec<_> = amortization
-        .iter()
-        .step_by(sample_interval)
-        .take(120)
-        .collect();
-
-    if samples.is_empty() {
-        return container(text("No data")).into();
-    }
-
-    let max_principal = samples
-        .iter()
-        .map(|p| p.principal)
-        .fold(0.0, f64::max);
-
-    let mut chart_bars_principal = Vec::new();
-    let mut chart_bars_interest = Vec::new();
-
-    for payment in samples.iter() {
-        let principal_height = (payment.principal / max_principal * 100.0).max(1.0);
-        let interest_height = (payment.interest / max_principal * 100.0).max(1.0);
-
-        chart_bars_principal.push(
-            container(text(""))
-                .width(Length::Fixed(3.0))
-                .height(Length::Fixed(principal_height as f32))
-                .padding(0)
-        );
-        
-        chart_bars_interest.push(
-            container(text(""))
-                .width(Length::Fixed(3.0))
-                .height(Length::Fixed(interest_height as f32))
-                .padding(0)
-        );
-    }
-
-    let principal_row = row(
-        chart_bars_principal
-            .into_iter()
-            .map(|b| b.into())
-            .collect::<Vec<Element<Message>>>()
-    ).spacing(0);
-
-    let interest_row = row(
-        chart_bars_interest
-            .into_iter()
-            .map(|b| b.into())
-            .collect::<Vec<Element<Message>>>()
-    ).spacing(0);
-
-    column![
-        text("Principal (top) vs Interest (bottom) Breakdown - 120 months").size(14),
-        text("Principal splits in early years, interest dominates at start").size(12),
-        container(principal_row)
-            .width(Length::Fixed(500.0))
-            .height(Length::Fixed(60.0)),
-        container(interest_row)
-            .width(Length::Fixed(500.0))
-            .height(Length::Fixed(60.0)),
-    ]
-    .spacing(5)
-    .padding(10)
-    .into()
-}
-
-/// Creates a visual chart showing remaining balance over time
-fn build_balance_chart(amortization: &[PaymentRecord]) -> Element<'static, Message> {
-    let sample_interval = (amortization.len() / 120).max(1);
-    let samples: Vec<_> = amortization
-        .iter()
-        .step_by(sample_interval)
-        .take(120)
-        .collect();
-
-    if samples.is_empty() {
-        return container(text("No data")).into();
-    }
-
-    let max_balance = samples
-        .iter()
-        .map(|p| p.balance)
-        .fold(0.0, f64::max);
-
-    let chart_bars: Vec<Element<Message>> = samples
-        .iter()
-        .map(|payment| {
-            let bar_height = (payment.balance / max_balance * 100.0).max(1.0);
-            container(text(""))
-                .width(Length::Fixed(4.0))
-                .height(Length::Fixed(bar_height as f32))
-                .padding(0)
-                .into()
-        })
-        .collect();
-
-    let chart_display = row(chart_bars).spacing(1);
-
-    column![
-        text("Remaining Loan Balance Over Time - 120 months").size(14),
-        text("Watch the principal decrease as you pay down the mortgage").size(12),
-        container(chart_display)
-            .width(Length::Fixed(500.0))
-            .height(Length::Fixed(120.0)),
-    ]
-    .spacing(5)
-    .padding(10)
-    .into()
-}
-
-/// Creates a pie chart style visualization of total principal vs total interest
-fn build_payment_composition_chart(monthly_payment: f64, total_interest: f64) -> Element<'static, Message> {
-    let total_principal = monthly_payment * 360.0 - total_interest;
-    let total_amount = total_principal + total_interest;
-
-    let principal_percent = total_principal / total_amount * 100.0;
-    let interest_percent = total_interest / total_amount * 100.0;
-
-    let principal_width = principal_percent * 2.5; // Scale to reasonable width
-    let interest_width = interest_percent * 2.5;
-
-    column![
-        text("Total Payment Composition - 30 Year Mortgage").size(14),
-        row![
-            container(text(""))
-                .width(Length::Fixed(principal_width as f32))
-                .height(Length::Fixed(60.0))
-                .padding(0),
-            container(text(""))
-                .width(Length::Fixed(interest_width as f32))
-                .height(Length::Fixed(60.0))
-                .padding(0),
-        ].spacing(0),
-        row![
-            column![
-                text("Principal").size(13),
-                text(format!("${:.0}", total_principal)).size(13),
-                text(format!("{:.1}%", principal_percent)).size(12),
-            ]
-            .spacing(3),
-            space(),
-            column![
-                text("Interest").size(13),
-                text(format!("${:.0}", total_interest)).size(13),
-                text(format!("{:.1}%", interest_percent)).size(12),
-            ]
-            .spacing(3)
-            .align_x(Alignment::End),
-        ]
-        .spacing(15)
-        .align_y(Alignment::Center),
-    ]
-    .spacing(5)
-    .padding(10)
-    .into()
-}
 
 // #[cfg(test)]
 // mod tests {
