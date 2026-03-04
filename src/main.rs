@@ -1,12 +1,9 @@
-use iced::{Alignment, Element, Font, Length, Pixels};
+use iced::{Alignment, Element, Font, Length, Pixels, Theme};
 use iced::widget::{column, row, text, text_input, container, scrollable};
 use iced::Task;
 
-const SANS_FONT_BYTES: &[u8] = include_bytes!("../fonts/IBMPlexSans-Regular.ttf");
-const MONO_FONT_BYTES: &[u8] = include_bytes!("../fonts/MapleMono-Regular.ttf");
-
-const SANS_FONT: Font = Font::with_name("IBM Plex Sans");
-const MONO_FONT: Font = Font::with_name("Maple Mono");
+const MONO_FONT_BYTES: &[u8] = include_bytes!("../fonts/VictorMonoNerdFontMono-Regular.ttf");
+const MONO_FONT: Font = Font::with_name("VictorMono Nerd Font Mono");
 
 fn main() -> iced::Result {
     iced::application(
@@ -14,9 +11,9 @@ fn main() -> iced::Result {
         HouseOrHodl::update,
         HouseOrHodl::view,
     )
-    .font(SANS_FONT_BYTES)
     .font(MONO_FONT_BYTES)
-    .default_font(SANS_FONT)
+    .default_font(MONO_FONT)
+    .theme(Theme::TokyoNight)
     .run()
 }
 
@@ -24,20 +21,23 @@ fn main() -> iced::Result {
 enum Message {
     MortgageChanged(String),
     InterestRateChanged(String),
+    TermYearsChanged(String),
 }
 
 #[derive(Clone)]
 struct HouseOrHodl {
-    mortgage_input: String,
-    interest_input: String,
+    mortgage: String,
+    interest: String,
+    term_years: String
 }
 
 impl HouseOrHodl {
     fn new() -> (Self, Task<Message>) {
         (
             HouseOrHodl {
-                mortgage_input: "300000".to_string(),
-                interest_input: "6.5".to_string(),
+                mortgage: String::from("500000"),
+                interest: String::from("5.2"),
+                term_years: String::from("25"),
             },
             Task::none(),
         )
@@ -46,10 +46,13 @@ impl HouseOrHodl {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::MortgageChanged(value) => {
-                self.mortgage_input = value;
+                self.mortgage = value;
             }
             Message::InterestRateChanged(value) => {
-                self.interest_input = value;
+                self.interest = value;
+            }
+            Message::TermYearsChanged(value) => {
+                self.term_years = value;
             }
         }
         Task::none()
@@ -59,10 +62,11 @@ impl HouseOrHodl {
         container(
             scrollable(
                 column![
-                    Self::header(),
-                    Self::input_section(&self.mortgage_input, &self.interest_input),
-                    Self::summary_section(self),
-                    Self::table_section(self),
+                    self.header(),
+                    self.input_section()
+                    // Self::input_section(&self.mortgage_input, &self.interest_input),
+                    // Self::summary_section(self),
+                    // Self::table_section(self),
                 ]
                 .spacing(0)
                 .width(Length::Fill)
@@ -74,11 +78,11 @@ impl HouseOrHodl {
         .into()
     }
 
-    fn header() -> Element<'static, Message> {
+    fn header(&self) -> Element<'static, Message> {
         container(
             column![
-                text("HOUSE OR HODL").size(32),
-                text("Mortgage Calculator & Amortization Visualizer").size(14),
+                text("House Or Hodl").size(48),
+                text("Mortgage Calculator & Amortization Visualizer").size(24),
             ]
             .spacing(5)
         )
@@ -87,27 +91,35 @@ impl HouseOrHodl {
         .into()
     }
 
-    fn input_section(mortgage_input: &str, interest_input: &str) -> Element<'static, Message> {
+    fn input_section(&self) -> Element<'static, Message> {
         container(
             column![
-                text("Enter Mortgage Details").size(16),
+                text("Mortgage Details").size(16),
                 row![
                     column![
                         text("Mortgage Amount").size(12),
-                        text_input("e.g., 300000", mortgage_input)
-                            .on_input(Message::MortgageChanged)
-                            .padding(10)
+                        text_input("e.g., 300000", &self.mortgage)
+                        .on_input(Message::MortgageChanged)
+                        .padding(10)
                     ]
                     .spacing(6)
                     .width(Length::Fill),
                     column![
                         text("Annual Interest Rate (%)").size(12),
-                        text_input("e.g., 6.5", interest_input)
-                            .on_input(Message::InterestRateChanged)
-                            .padding(10)
+                        text_input("e.g., 6.5", &self.interest)
+                        .on_input(Message::InterestRateChanged)
+                        .padding(10)
                     ]
                     .spacing(6)
                     .width(Length::Fill),
+                    column![
+                        text("Term Length (Years)").size(12),
+                        text_input("e.g., 25", &self.term_years)
+                        .on_input(Message::TermYearsChanged)
+                        .padding(10)
+                    ]
+                    .spacing(6)
+                    .width(Length::Fill)
                 ]
                 .spacing(15)
                 .width(Length::Fill),
@@ -119,90 +131,49 @@ impl HouseOrHodl {
         .into()
     }
 
-    fn summary_section(&self) -> Element<'_, Message> {
-        let mortgage: f64 = self.mortgage_input.parse().unwrap_or(0.0);
-        let annual_rate: f64 = self.interest_input.parse().unwrap_or(0.0);
+    // fn summary_section(&self) -> Element<'_, Message> {
+    //     let mortgage: f64 = self.mortgage;
+    //     let annual_rate: f64 = self.interest;
 
-        let (monthly_payment, total_interest, _amortization) =
-            if mortgage > 0.0 && annual_rate > 0.0 {
-                calculate_mortgage(mortgage, annual_rate, 360)
-            } else {
-                (0.0, 0.0, vec![])
-            };
+    //     let (monthly_payment, total_interest, _amortization) =
+    //         if mortgage > 0.0 && annual_rate > 0.0 {
+    //             calculate_mortgage(mortgage, annual_rate, 360)
+    //         } else {
+    //             (0.0, 0.0, vec![])
+    //         };
 
-        if mortgage > 0.0 && annual_rate > 0.0 {
-            let total_paid = mortgage + total_interest;
+    //     if mortgage > 0.0 && annual_rate > 0.0 {
+    //         let total_paid = mortgage + total_interest;
             
-            container(
-                column![
-                    text("Payment Summary").size(16),
-                    row![
-                        summary_card("Monthly Payment", format!("${:.2}", monthly_payment)),
-                        summary_card("Total Principal", format!("${:.2}", mortgage)),
-                        summary_card("Total Interest", format!("${:.2}", total_interest)),
-                        summary_card("Total Amount Paid", format!("${:.2}", total_paid)),
-                    ]
-                    .spacing(15)
-                ]
-                .spacing(12)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .into()
-        } else {
-            container(
-                text("Enter values to see calculations").size(14)
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .into()
-        }
-    }
+    //         container(
+    //             column![
+    //                 text("Payment Summary").size(16),
+    //                 row![
+    //                     summary_card("Monthly Payment", format!("${:.2}", monthly_payment)),
+    //                     summary_card("Total Principal", format!("${:.2}", mortgage)),
+    //                     summary_card("Total Interest", format!("${:.2}", total_interest)),
+    //                     summary_card("Total Amount Paid", format!("${:.2}", total_paid)),
+    //                 ]
+    //                 .spacing(15)
+    //             ]
+    //             .spacing(12)
+    //         )
+    //         .padding(20)
+    //         .width(Length::Fill)
+    //         .into()
+    //     } else {
+    //         container(
+    //             text("Enter values to see calculations").size(14)
+    //         )
+    //         .padding(20)
+    //         .width(Length::Fill)
+    //         .into()
+    //     }
+    // }
 
-    fn table_section(&self) -> Element<'_, Message> {
-        let mortgage: f64 = self.mortgage_input.parse().unwrap_or(0.0);
-        let annual_rate: f64 = self.interest_input.parse().unwrap_or(0.0);
+    // fn table_section(&self) -> Element<'_, Message> {
+   
 
-        let (_monthly_payment, _total_interest, amortization) =
-            if mortgage > 0.0 && annual_rate > 0.0 {
-                calculate_mortgage(mortgage, annual_rate, 360)
-            } else {
-                (0.0, 0.0, vec![])
-            };
-
-        if !amortization.is_empty() {
-            // Pre-format the entire table as a single string to avoid thousands of widgets.
-            // Header + 360 rows × ~60 chars ≈ 22 KB — one text widget instead of ~3,600.
-            let mut table = String::with_capacity(amortization.len() * 64 + 80);
-            table.push_str(&format!(
-                "{:>5}  {:>11}  {:>11}  {:>10}  {:>12}\n",
-                "Month", "Payment", "Principal", "Interest", "Balance"
-            ));
-            for p in &amortization {
-                table.push_str(&format!(
-                    "{:>5}  ${:>10.2}  ${:>10.2}  ${:>9.2}  ${:>11.2}\n",
-                    p.month, p.payment, p.principal, p.interest, p.balance
-                ));
-            }
-
-            container(
-                column![
-                    text("Amortization Schedule").size(16),
-                    text(format!(
-                        "All {} months of 30-year mortgage",
-                        amortization.len()
-                    ))
-                    .size(12),
-                    text(table).size(10).font(MONO_FONT)
-                ]
-            )
-            .padding(20)
-            .width(Length::Fill)
-            .into()
-        } else {
-            container(column![]).padding(20).width(Length::Fill).into()
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
