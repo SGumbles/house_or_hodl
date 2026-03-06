@@ -1,9 +1,13 @@
 use std::marker::PhantomData;
 use std::ops::Deref;
 use std::str::FromStr;
+
+use iced::alignment::Horizontal;
 use iced::{Element, Font, Length, Pixels, Theme};
-use iced::widget::{column, row, text, text_input, container, scrollable};
+use iced::widget::{checkbox, column, container, row, scrollable, text, text_input};
 use iced::Task;
+
+mod simulator;
 
 const MONO_FONT_BYTES: &[u8] = include_bytes!("../fonts/VictorMonoNerdFontMono-Regular.ttf");
 const MONO_FONT: Font = Font::with_name("VictorMono Nerd Font Mono");
@@ -25,6 +29,7 @@ enum Message {
     MortgageChanged(String),
     InterestRateChanged(String),
     TermYearsChanged(String),
+    PayPrincipalFirstChanged(bool)
 }
 
 #[derive(Clone,Debug)]
@@ -51,6 +56,9 @@ impl<NumericType: FromStr> NumericString<NumericType>{
             false
         }
     }
+    fn to_numeric(&self) -> Result<NumericType,NumericType::Err> {
+        self.parse()
+    }
 }
 
 impl<NumericType> Deref for NumericString<NumericType>{
@@ -70,7 +78,8 @@ impl<T: ToString, N:FromStr> From<T> for NumericString<N>{
 struct HouseOrHodl {
     mortgage: NumericString<f64>,
     interest: NumericString<f64>,
-    term_years: NumericString<u32>
+    term_years: NumericString<u32>,
+    pay_principal_first: bool
 }
 
 impl HouseOrHodl {
@@ -80,6 +89,7 @@ impl HouseOrHodl {
                 mortgage: "500000".into(),
                 interest: "5.2".into(),
                 term_years: "25".into(),
+                pay_principal_first: false
             },
             Task::none(),
         )
@@ -96,18 +106,20 @@ impl HouseOrHodl {
             Message::TermYearsChanged(value) => {
                 self.term_years.update(value);
             }
+            Message::PayPrincipalFirstChanged(value) => {
+                self.pay_principal_first = value;
+            }
         }
         Task::none()
     }
 
-    fn view(&self) -> Element<'_, Message> {
+    fn view(&'_ self) -> Element<'_,Message> {
         container(
             scrollable(
                 column![
                     self.header(),
-                    self.input_section()
-                    // Self::input_section(&self.mortgage_input, &self.interest_input),
-                    // Self::summary_section(self),
+                    self.input_section(),
+                    self.summary_section(),
                     // Self::table_section(self),
                 ]
                 .spacing(0)
@@ -120,7 +132,7 @@ impl HouseOrHodl {
         .into()
     }
 
-    fn header(&self) -> Element<'static, Message> {
+    fn header(&self) -> Element<'_,Message> {
         container(
             column![
                 text("House Or Hodl").size(48),
@@ -133,7 +145,7 @@ impl HouseOrHodl {
         .into()
     }
 
-    fn input_section(&self) -> Element<'static, Message> {
+    fn input_section(&self) -> Element<'_,Message> {
         container(
             column![
                 text("Mortgage Details").size(16),
@@ -161,6 +173,13 @@ impl HouseOrHodl {
                         .padding(10)
                     ]
                     .spacing(6)
+                    .width(Length::Fill),
+                    column![
+                        text("Pay the principal first?").size(12),
+                        checkbox(self.pay_principal_first)
+                        .on_toggle(Message::PayPrincipalFirstChanged)
+                    ]
+                    .spacing(6)
                     .width(Length::Fill)
                 ]
                 .spacing(15)
@@ -173,45 +192,72 @@ impl HouseOrHodl {
         .into()
     }
 
-    // fn summary_section(&self) -> Element<'_, Message> {
-    //     let mortgage: f64 = self.mortgage;
-    //     let annual_rate: f64 = self.interest;
+    fn summary_section(&self) -> Element<'_,Message> {
+        
+        let blank_section = container(
+            text("Enter values to see calculations").size(28)
+        )
+        .padding(20)
+        .width(Length::Fill)
+        .align_x(Horizontal::Center)
+        .into();
 
-    //     let (monthly_payment, total_interest, _amortization) =
-    //         if mortgage > 0.0 && annual_rate > 0.0 {
-    //             calculate_mortgage(mortgage, annual_rate, 360)
-    //         } else {
-    //             (0.0, 0.0, vec![])
-    //         };
+        // Just to be clear, I would never write this, I just want to practice destructuring in a ridiculous way
+        let (   Ok(mortgage),
+                Ok(interest),
+                Ok(term_years)) = 
+                (self.mortgage.to_numeric(),
+                self.interest.to_numeric(),
+                self.term_years.to_numeric()) else {
+            return blank_section;
+        };
 
-    //     if mortgage > 0.0 && annual_rate > 0.0 {
-    //         let total_paid = mortgage + total_interest;
+        let sim_results = simulator::run_simulator( simulator::SimulatorParameters{
+            mortgage:mortgage,
+            annual_interest_rate:interest,
+            term_length_years:term_years,
+            pay_down_principal_first: false
+        });
+        container(
+            text(format!("Gonna be paying about {} :(",sim_results.monthly_payments)).size(28)
+        )
+        .padding(20)
+        .width(Length::Fill)
+        .align_x(Horizontal::Center)
+        .into()
+        
+        // let annual_rate: f64 = self.interest;
+
+        // let (monthly_payment, total_interest, _amortization) =
+        //     if mortgage > 0.0 && annual_rate > 0.0 {
+        //         calculate_mortgage(mortgage, annual_rate, 360)
+        //     } else {
+        //         (0.0, 0.0, vec![])
+        //     };
+
+        // if mortgage > 0.0 && annual_rate > 0.0 {
+        //     let total_paid = mortgage + total_interest;
             
-    //         container(
-    //             column![
-    //                 text("Payment Summary").size(16),
-    //                 row![
-    //                     summary_card("Monthly Payment", format!("${:.2}", monthly_payment)),
-    //                     summary_card("Total Principal", format!("${:.2}", mortgage)),
-    //                     summary_card("Total Interest", format!("${:.2}", total_interest)),
-    //                     summary_card("Total Amount Paid", format!("${:.2}", total_paid)),
-    //                 ]
-    //                 .spacing(15)
-    //             ]
-    //             .spacing(12)
-    //         )
-    //         .padding(20)
-    //         .width(Length::Fill)
-    //         .into()
-    //     } else {
-    //         container(
-    //             text("Enter values to see calculations").size(14)
-    //         )
-    //         .padding(20)
-    //         .width(Length::Fill)
-    //         .into()
-    //     }
-    // }
+        //     container(
+        //         column![
+        //             text("Payment Summary").size(16),
+        //             row![
+        //                 summary_card("Monthly Payment", format!("${:.2}", monthly_payment)),
+        //                 summary_card("Total Principal", format!("${:.2}", mortgage)),
+        //                 summary_card("Total Interest", format!("${:.2}", total_interest)),
+        //                 summary_card("Total Amount Paid", format!("${:.2}", total_paid)),
+        //             ]
+        //             .spacing(15)
+        //         ]
+        //         .spacing(12)
+        //     )
+        //     .padding(20)
+        //     .width(Length::Fill)
+        //     .into()
+        // } else {
+            
+        // }
+    }
 
     // fn table_section(&self) -> Element<'_, Message> {
    
