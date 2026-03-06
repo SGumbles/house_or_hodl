@@ -1,4 +1,5 @@
-use iced::{Alignment, Element, Font, Length, Pixels, Theme};
+use std::ops::Deref;
+use iced::{Element, Font, Length, Pixels, Theme};
 use iced::widget::{column, row, text, text_input, container, scrollable};
 use iced::Task;
 
@@ -24,20 +25,59 @@ enum Message {
     TermYearsChanged(String),
 }
 
+#[derive(Clone,Debug)]
+struct NumericString(String);
+
+impl NumericString {
+    fn new<T: ToString> (value: T) -> Self {
+        let string_val = value.to_string();
+        if Self::parses_nicely(&string_val) {
+            NumericString(string_val)
+        } else{
+            NumericString("".to_string())
+        }
+    }
+    fn update(&mut self, value: String) {
+        if Self::parses_nicely(&value) {
+            *self = Self::new(value);
+        }
+    }
+    fn parses_nicely(s: &String) -> bool {
+        if s.parse::<u32>().is_ok() || s.is_empty() {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl Deref for NumericString{
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<T: ToString> From<T> for NumericString{
+    fn from(value: T) -> Self {
+        NumericString::new(value)
+    }
+}
+
 #[derive(Clone)]
 struct HouseOrHodl {
-    mortgage: String,
-    interest: String,
-    term_years: String
+    mortgage: NumericString,
+    interest: NumericString,
+    term_years: NumericString
 }
 
 impl HouseOrHodl {
     fn new() -> (Self, Task<Message>) {
         (
             HouseOrHodl {
-                mortgage: String::from("500000"),
-                interest: String::from("5.2"),
-                term_years: String::from("25"),
+                mortgage: "500000".into(),
+                interest: "5.2".into(),
+                term_years: "25".into(),
             },
             Task::none(),
         )
@@ -46,13 +86,13 @@ impl HouseOrHodl {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::MortgageChanged(value) => {
-                self.mortgage = value;
+                self.mortgage.update(value);
             }
             Message::InterestRateChanged(value) => {
-                self.interest = value;
+                self.interest.update(value);
             }
             Message::TermYearsChanged(value) => {
-                self.term_years = value;
+                self.term_years.update(value);
             }
         }
         Task::none()
@@ -176,69 +216,69 @@ impl HouseOrHodl {
 
 }
 
-#[derive(Clone, Debug)]
-struct PaymentRecord {
-    month: u32,
-    payment: f64,
-    principal: f64,
-    interest: f64,
-    balance: f64,
-}
+// #[derive(Clone, Debug)]
+// struct PaymentRecord {
+//     month: u32,
+//     payment: f64,
+//     principal: f64,
+//     interest: f64,
+//     balance: f64,
+// }
 
-fn summary_card(label: &str, value: String) -> Element<'_, Message> {
-    container(
-        column![
-            text(label).size(11),
-            text(value).size(18),
-        ]
-        .spacing(8)
-        .align_x(Alignment::Center)
-    )
-    .width(Length::Fill)
-    .padding(15)
-    .into()
-}
+// fn summary_card(label: &str, value: String) -> Element<'_, Message> {
+//     container(
+//         column![
+//             text(label).size(11),
+//             text(value).size(18),
+//         ]
+//         .spacing(8)
+//         .align_x(Alignment::Center)
+//     )
+//     .width(Length::Fill)
+//     .padding(15)
+//     .into()
+// }
 
-fn calculate_mortgage(
-    principal: f64,
-    annual_rate: f64,
-    months: u32,
-) -> (f64, f64, Vec<PaymentRecord>) {
-    let monthly_rate = annual_rate / 100.0 / 12.0;
+// fn calculate_mortgage(
+//     principal: f64,
+//     annual_rate: f64,
+//     months: u32,
+// ) -> (f64, f64, Vec<PaymentRecord>) {
+//     let monthly_rate = annual_rate / 100.0 / 12.0;
 
-    // Calculate monthly payment using standard formula
-    // M = P * [r(1+r)^n] / [(1+r)^n - 1]
-    let numerator = monthly_rate * (1.0 + monthly_rate).powi(months as i32);
-    let denominator = (1.0 + monthly_rate).powi(months as i32) - 1.0;
-    let monthly_payment = principal * (numerator / denominator);
+//     // Calculate monthly payment using standard formula
+//     // M = P * [r(1+r)^n] / [(1+r)^n - 1]
+//     let numerator = monthly_rate * (1.0 + monthly_rate).powi(months as i32);
+//     let denominator = (1.0 + monthly_rate).powi(months as i32) - 1.0;
+//     let monthly_payment = principal * (numerator / denominator);
 
-    let mut balance = principal;
-    let mut total_interest = 0.0;
-    let mut schedule = Vec::new();
+//     let mut balance = principal;
+//     let mut total_interest = 0.0;
+//     let mut schedule = Vec::new();
 
-    for month in 1..=months {
-        let interest_payment = balance * monthly_rate;
-        let principal_payment = monthly_payment - interest_payment;
-        balance -= principal_payment;
+//     for month in 1..=months {
+//         let interest_payment = balance * monthly_rate;
+//         let principal_payment = monthly_payment - interest_payment;
+//         balance -= principal_payment;
 
-        total_interest += interest_payment;
+//         total_interest += interest_payment;
 
-        // Avoid negative balance due to floating point errors
-        if balance < 0.0 {
-            balance = 0.0;
-        }
+//         // Avoid negative balance due to floating point errors
+//         if balance < 0.0 {
+//             balance = 0.0;
+//         }
 
-        schedule.push(PaymentRecord {
-            month,
-            payment: monthly_payment,
-            principal: principal_payment,
-            interest: interest_payment,
-            balance,
-        });
-    }
+//         schedule.push(PaymentRecord {
+//             month,
+//             payment: monthly_payment,
+//             principal: principal_payment,
+//             interest: interest_payment,
+//             balance,
+//         });
+//     }
 
-    (monthly_payment, total_interest, schedule)
-}
+//     (monthly_payment, total_interest, schedule)
+// }
 
 
 // #[cfg(test)]
