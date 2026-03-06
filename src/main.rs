@@ -1,4 +1,6 @@
+use std::marker::PhantomData;
 use std::ops::Deref;
+use std::str::FromStr;
 use iced::{Element, Font, Length, Pixels, Theme};
 use iced::widget::{column, row, text, text_input, container, scrollable};
 use iced::Task;
@@ -26,15 +28,15 @@ enum Message {
 }
 
 #[derive(Clone,Debug)]
-struct NumericString(String);
+struct NumericString<NumericType>(String,PhantomData<NumericType>);
 
-impl NumericString {
+impl<NumericType: FromStr> NumericString<NumericType>{
     fn new<T: ToString> (value: T) -> Self {
         let string_val = value.to_string();
         if Self::parses_nicely(&string_val) {
-            NumericString(string_val)
+            NumericString::<NumericType>(string_val,PhantomData)
         } else{
-            NumericString("".to_string())
+            NumericString::<NumericType>("".to_string(),PhantomData)
         }
     }
     fn update(&mut self, value: String) {
@@ -43,7 +45,7 @@ impl NumericString {
         }
     }
     fn parses_nicely(s: &String) -> bool {
-        if s.parse::<u32>().is_ok() || s.is_empty() {
+        if s.parse::<NumericType>().is_ok() || s.is_empty() {
             true
         } else {
             false
@@ -51,24 +53,24 @@ impl NumericString {
     }
 }
 
-impl Deref for NumericString{
+impl<NumericType> Deref for NumericString<NumericType>{
     type Target = str;
     fn deref(&self) -> &str {
         &self.0
     }
 }
 
-impl<T: ToString> From<T> for NumericString{
+impl<T: ToString, N:FromStr> From<T> for NumericString<N>{
     fn from(value: T) -> Self {
-        NumericString::new(value)
+        NumericString::<N>::new(value)
     }
 }
 
 #[derive(Clone)]
 struct HouseOrHodl {
-    mortgage: NumericString,
-    interest: NumericString,
-    term_years: NumericString
+    mortgage: NumericString<f64>,
+    interest: NumericString<f64>,
+    term_years: NumericString<u32>
 }
 
 impl HouseOrHodl {
