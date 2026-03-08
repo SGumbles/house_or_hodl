@@ -212,14 +212,14 @@ impl HouseOrHodl {
             return blank_section;
         };
 
-        let sim_results = simulator::run_simulator( simulator::SimulatorParameters{
-            mortgage:mortgage,
-            annual_interest_rate:interest,
-            term_length_years:term_years,
-            pay_down_principal_first: false
-        });
+        let Ok(sim_params) = simulator::SimulatorParameters::new(mortgage, interest, term_years, simulator::CompoundingInterestStyle::Canadian) else {
+            return blank_section;
+        };      
+
+        let sim_results = simulator::run_simulator(sim_params);
+        
         container(
-            text(format!("Gonna be paying about {} :(",sim_results.monthly_payments)).size(28)
+            text(format!("Gonna be paying about {:.23} :(",sim_results.monthly_payment)).size(28)
         )
         .padding(20)
         .width(Length::Fill)
