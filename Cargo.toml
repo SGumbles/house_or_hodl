@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-iced = { version = "0.14.0", features = ["debug"] }
-plotters = "0.3"
-plotters-bitmap = "0.3"
+dioxus = { version = "0.7.1", features = ["fullstack"] }
+
+[features]
+default = ["web", "server"]
+web = ["dioxus/web"]
+server = ["dioxus/server"]
