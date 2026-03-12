@@ -1,5 +1,7 @@
 use core::f64;
 
+
+#[derive(Debug, Clone)]
 pub enum CompoundingInterestStyle{
     American,
     Canadian,
@@ -37,7 +39,7 @@ fn how_long_to_pay(per_month:f64, annual_interest:f64, principal:f64, compoundin
 fn compute_monthly_payments(principal:f64, annual_interest: f64, term_length_years: u32, compounding_style: &CompoundingInterestStyle) -> f64 {
     
     const NARROW_PHASE_STEP_SIZE:f64 = 0.10;
-    let max_step_size:f64 = (principal / 1e6  ).max(0.01);
+    let max_step_size:f64 = (principal / 1.0e6  ).max(0.01);
     
     let term_length_months = (term_length_years as f64) * 12.0;
     let mut payment_guess = (principal * compute_monthly_interest_rate(annual_interest, compounding_style)) + max_step_size;
@@ -111,7 +113,6 @@ pub enum SimulatorError{
     InvalidParameter
 }
 
-
 pub struct SimulatorParameters {
     mortgage : f64,
     annual_interest_rate : f64,
@@ -126,7 +127,7 @@ impl SimulatorParameters {
         term_length_years : u32,
         compounding_style: CompoundingInterestStyle
     ) -> Result<Self, SimulatorError> {
-        if mortgage < 100.0 || mortgage > 10.0e9 {
+        if mortgage < 100.0 || mortgage > 1.0e9 {
             return Err(SimulatorError::InvalidParameter);
         }
         if term_length_years <= 0 || term_length_years > 50 {
