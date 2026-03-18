@@ -1,5 +1,10 @@
 use dioxus::{prelude::*};
 
+mod components;
+use components::{FormatOptions, NumericInput};
+
+
+
 fn main() {
     dioxus::launch(App);
 }
@@ -26,7 +31,7 @@ fn App() -> Element {
                 }
             }
             div{
-                class: "bg-slate-800 text-amber-50 border-t-2 grow p-2",  
+                class: "bg-slate-800 text-amber-50 border-t-2 grow p-2",
                 Results{}
             }
         }
@@ -44,20 +49,73 @@ fn Results() -> Element {
 
 #[component]
 fn Hodl() -> Element {
+    let per_month = use_signal(|| Some::<f64>(1000.0));
+    let annual_interest = use_signal(|| Some::<f64>(7.1));
+    let term_years = use_signal(|| Some::<f64>(25.0));
+
     rsx!{
-        h1 {
-            class: "text-xl text-center",
-            "Hodl"
+        div{
+            h1 {
+                class: "text-xl text-center",
+                "Hodl"
+            }
+            div {
+                class: "mt-3 flex flex-col gap-4",
+                NumericInput {
+                    label: "Per Month Investment".to_string(),
+                    value: per_month,
+                    format: FormatOptions::float(0.0, 10000000.0),
+                }
+                NumericInput {
+                    label: "Annual Interest (%)".to_string(),
+                    value: annual_interest,
+                    format: FormatOptions::float(0.0, 20.0),
+                }
+                NumericInput {
+                    label: "Term (Years)".to_string(),
+                    value: term_years,
+                    format: FormatOptions::integer(1.0, 50.0),
+                }
+            }
         }
     }
 }
 
 #[component]
 fn House() -> Element {
+    let mortgage = use_signal(|| Some::<f64>(500000.0));
+    let annual_interest = use_signal(|| Some::<f64>(5.25));
+    let term_years = use_signal(|| Some::<f64>(25.0));
+
+    use_effect({
+        move || tracing::debug!("Re-calculating housing with {:?} {:?} {:?}",mortgage.read(),annual_interest,term_years)
+    }
+    );
+
     rsx!{
-        h1 {
-            class: "text-xl text-center",
-            "House"
+        div{
+            h1 {
+                class: "text-xl text-center",
+                "House"
+            }
+            div {
+                class: "mt-3 flex flex-col gap-4",
+                NumericInput {
+                    label: "Mortgage".to_string(),
+                    value: mortgage,
+                    format: FormatOptions::float(0.0, 10000000.0),
+                }
+                NumericInput {
+                    label: "Annual Interest (%)".to_string(),
+                    value: annual_interest,
+                    format: FormatOptions::float(0.0, 20.0),
+                }
+                NumericInput {
+                    label: "Term (Years)".to_string(),
+                    value: term_years,
+                    format: FormatOptions::integer(1.0, 50.0),
+                }
+            }
         }
     }
 }
