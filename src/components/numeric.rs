@@ -6,7 +6,7 @@ pub enum NumberKind {
     Float,
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct FormatOptions {
     pub min: f64,
     pub max: f64,
@@ -76,10 +76,10 @@ fn is_allowed_numeric_input(input: &str, format: FormatOptions) -> bool {
 #[component]
 pub fn NumericInput(
     label: String,
-    mut value: Signal<Option<f64>>,
+    mut value: Signal<f64>,
     format: FormatOptions,
 ) -> Element {
-    let mut text = use_signal(|| value().map(|v| v.to_string()).unwrap_or_default());
+    let mut text = use_signal(|| value().to_string());
 
     rsx! {
         div {
@@ -101,14 +101,14 @@ pub fn NumericInput(
 
                     if next.is_empty() {
                         *text.write() = next;
-                        *value.write() = None;
+                        *value.write() = 0.0;
                     } else if let Ok(parsed) = next.parse::<f64>() {
                         if parsed < format.min || parsed > format.max {
                             return;
                         }
 
                         *text.write() = next;
-                        *value.write() = Some(parsed);
+                        *value.write() = parsed;
                     } else {
                         // Keep intermediary values like "-" and "1." while editing.
                         *text.write() = next;
