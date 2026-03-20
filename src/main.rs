@@ -60,11 +60,55 @@ fn App() -> Element {
     }
 }
 
+
+#[component]
+fn LabelData(label : String, data : String) -> Element {
+    rsx!{
+        div {  
+            class : "w-fit",
+            h3 {
+                class: "gay",
+                "{label}"
+            }
+            p { 
+                "{data}"
+            }
+        }
+    }
+}
+
+
 #[component]
 fn Results(house_results : Signal<Option<HouseResults>>, hodl_results: Signal<Option<HodlResults>>) -> Element {
     rsx!{
         div {
-            h1 { class: "text-xl text-center","Results" }
+            h1 { class: "text-2xl text-center","Results" }
+        }
+        div {
+            class : "p-3",
+            h1 { 
+                class : "text-xl",
+                "House Ownership" 
+            }
+            div { 
+                class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
+                LabelData { label:"Average Monthly Payments", data:"2750.00"  }
+                LabelData { label:"Total paid to Interest", data:"150.00"  }
+                LabelData { label:"Total paid to Principal", data:"150.00"  }
+            }
+        }
+        div {
+            class : "p-3",
+            h1 { 
+                class : "text-xl",
+                "Stock Market" 
+            }
+            div { 
+                class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
+                LabelData { label:"Average Monthly Payments", data:"1000.0"  }
+                LabelData { label:"Total paid to Rent", data:"150.00"  }
+                LabelData { label:"Total paid to Principal", data:"150.00"  }
+            }
         }
     }
 }
@@ -75,10 +119,18 @@ fn Hodl(term_years: Signal<f64>, hodl_results : Signal<Option<HodlResults>>) -> 
     let per_month = use_signal(||1000.0);
     let annual_interest = use_signal(|| 7.1);
 
+    use_effect(move || {
+        tracing::debug!("Recalculating Hodl based on {per_month} {annual_interest} {term_years}");
+        *hodl_results.write() = Some( HodlResults { 
+            total_paid_to_rent: 50025.2, 
+            annual_interest: 5.2 
+        })
+    });
+
     rsx!{
         div{
             h1 {
-                class: "text-xl text-center",
+                class: "text-2xl text-center",
                 "Hodl"
             }
             div {
@@ -110,10 +162,19 @@ fn House(term_years: Signal<f64>, house_results : Signal<Option<HouseResults>>) 
     let annual_interest = use_signal(|| 5.25);
     let mut interest_method = use_signal(|| CompoundingInterestStyle::Canadian);
 
+    use_effect(move || {
+        tracing::debug!("Recalculating House based on {mortgage} {annual_interest} {interest_method:?} {term_years}");
+        *house_results.write() = Some(HouseResults{
+            monthly_payments: 2600.52,
+            total_paid_to_principal: 305122.50,
+            total_paid_to_interest: 12533.5
+        })
+    });
+
     rsx!{
         div{
             h1 {
-                class: "text-xl text-center",
+                class: "text-2xl text-center",
                 "House"
             }
             div {
@@ -149,9 +210,7 @@ fn House(term_years: Signal<f64>, house_results : Signal<Option<HouseResults>>) 
                                             _ => {}
                                         }
                                     }
-                                    FormValue::File(_) => {
-                                        tracing::warn!("Unexpected file value for interest radio input");
-                                    }
+                                    _ => {}
                                 }
                             }
                         },
