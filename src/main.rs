@@ -5,6 +5,10 @@ use dioxus::{prelude::*};
 mod components;
 use components::{FormatOptions, NumericInput};
 
+mod simulator;
+use simulator::{CompoundingInterestStyle};
+
+
 fn main() {
     dioxus::launch(App);
 }
@@ -87,7 +91,7 @@ fn Hodl(term_years: Signal<f64>, hodl_results : Signal<Option<HodlResults>>) -> 
                 NumericInput {
                     label: "Annual Interest (%)".to_string(),
                     value: annual_interest,
-                    format: FormatOptions::float(0.0, 20.0),
+                    format: FormatOptions::float(0.0, 40.0),
                 }
                 NumericInput {
                     label: "Term (Years)".to_string(),
@@ -104,10 +108,7 @@ fn House(term_years: Signal<f64>, house_results : Signal<Option<HouseResults>>) 
 
     let mortgage = use_signal(|| 500000.0);
     let annual_interest = use_signal(|| 5.25);
-
-    use_effect(
-        move || tracing::debug!("Re-calculating housing with {:?} {:?} {:?}",mortgage.read(),annual_interest,term_years)
-    );
+    let mut interest_method = use_signal(|| CompoundingInterestStyle::Canadian);
 
     rsx!{
         div{
@@ -116,26 +117,84 @@ fn House(term_years: Signal<f64>, house_results : Signal<Option<HouseResults>>) 
                 "House"
             }
             div {
-                class: "mt-3 flex flex-col gap-4",
-                NumericInput {
-                    label: "Mortgage".to_string(),
-                    value: mortgage,
-                    format: FormatOptions::float(0.0, 10000000.0),
+                class: "flex flex-row justify-around",
+                div {
+                    class: "mt-3 flex flex-col gap-4",
+                    NumericInput {
+                        label: "Mortgage".to_string(),
+                        value: mortgage,
+                        format: FormatOptions::float(0.0, 10000000.0),
+                    }
+                    NumericInput {
+                        label: "Annual Interest (%)".to_string(),
+                        value: annual_interest,
+                        format: FormatOptions::float(0.0, 20.0),
+                    }
+                    NumericInput {
+                        label: "Term (Years)".to_string(),
+                        value: term_years,
+                        format: FormatOptions::integer(1.0, 50.0),
+                    }
                 }
-                NumericInput {
-                    label: "Annual Interest (%)".to_string(),
-                    value: annual_interest,
-                    format: FormatOptions::float(0.0, 20.0),
-                }
-                NumericInput {
-                    label: "Term (Years)".to_string(),
-                    value: term_years,
-                    format: FormatOptions::integer(1.0, 50.0),
+                div {
+                    class: "mt-3 flex flex-col gap-4",
+                    form {
+                        onchange: move |evt| {
+                            if let Some(value) = evt.get_first("interest") {
+                                match value {
+                                    FormValue::Text(selected) => {
+                                        match selected.as_str() {
+                                            "canadian" => *interest_method.write() = CompoundingInterestStyle::Canadian,
+                                            "american" => *interest_method.write() = CompoundingInterestStyle::American,
+                                            _ => {}
+                                        }
+                                    }
+                                    FormValue::File(_) => {
+                                        tracing::warn!("Unexpected file value for interest radio input");
+                                    }
+                                }
+                            }
+                        },
+                        fieldset {  
+                            legend {  
+                                "Interest Method"
+                            }
+                            div {
+                                class: "space-x-4 flex flex-row",
+                                div {  
+                                    class: "space-x-2",
+                                    label {  
+                                        class:"text-sm",
+                                        "Canadian"    
+                                    }
+                                    input{
+                                        type:"radio",
+                                        name:"interest",
+                                        value:"canadian",
+                                        checked:true
+                                    }
+                                }
+                                div {
+                                    class: "space-x-2",
+                                    label {  
+                                        class:"text-sm",
+                                        "American"    
+                                    }
+                                    input{
+                                        type:"radio",
+                                        name:"interest",
+                                        value:"american"
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
+            
 
 #[component]
 fn Header() -> Element {
