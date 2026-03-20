@@ -1,4 +1,4 @@
-use dioxus::prelude::*;
+use dioxus::{prelude::*};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum NumberKind {
@@ -33,44 +33,16 @@ impl FormatOptions {
     }
 }
 
-fn is_allowed_numeric_input(input: &str, format: FormatOptions) -> bool {
+fn is_allowed_numeric_input(input: &str, format: FormatOptions) -> Result<f64,()> {
     if input.is_empty() {
-        return true;
+        return Ok(0.0);
     }
-
-    if input == "-" {
-        return format.min < 0.0;
-    }
-
-    let mut chars = input.chars();
-    let is_negative = matches!(chars.next(), Some('-'));
-    let remainder = if is_negative { &input[1..] } else { input };
-
-    if is_negative && format.min >= 0.0 {
-        return false;
-    }
-
-    if remainder.is_empty() {
-        return false;
-    }
-
-    if !remainder
-        .chars()
-        .all(|c| c.is_ascii_digit() || (c == '.' && format.kind == NumberKind::Float))
-    {
-        return false;
-    }
-
-    let dot_count = remainder.chars().filter(|c| *c == '.').count();
-    if dot_count > 1 {
-        return false;
-    }
-
-    if format.kind == NumberKind::Integer && dot_count > 0 {
-        return false;
-    }
-
-    true
+    let parsed = input.parse::<f64>().map_err(|_|())?
+                    .clamp(format.min, format.max);
+    match format.kind{
+        NumberKind::Integer => Ok(parsed.trunc()),
+        NumberKind::Float => Ok(parsed),
+    }        
 }
 
 #[component]
@@ -79,8 +51,7 @@ pub fn NumericInput(
     mut value: Signal<f64>,
     format: FormatOptions,
 ) -> Element {
-    let mut text = use_signal(|| value().to_string());
-
+    let text_value = use_memo(move || value.to_string());
     rsx! {
         div {
             class: "flex flex-col gap-1",
@@ -91,27 +62,10 @@ pub fn NumericInput(
             input {
                 r#type: "text",
                 class: "rounded max-w-40 border border-slate-300 px-2 py-1 text-amber-50 font-mono",
-                value: text(),
+                value: "{text_value}",
                 oninput: move |e| {
-                    let next = e.value();
-
-                    if !is_allowed_numeric_input(&next, format) {
-                        return;
-                    }
-
-                    if next.is_empty() {
-                        *text.write() = next;
-                        *value.write() = 0.0;
-                    } else if let Ok(parsed) = next.parse::<f64>() {
-                        if parsed < format.min || parsed > format.max {
-                            return;
-                        }
-
-                        *text.write() = next;
+                    if let Ok(parsed) = is_allowed_numeric_input(&e.value(), format) {
                         *value.write() = parsed;
-                    } else {
-                        // Keep intermediary values like "-" and "1." while editing.
-                        *text.write() = next;
                     }
                 }
             }
