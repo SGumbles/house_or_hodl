@@ -1,4 +1,5 @@
-#![allow(dead_code, unused_variables)]
+#![allow(dead_code, unused_variables, unused_imports)]
+
 
 use dioxus::{prelude::*};
 
@@ -6,7 +7,7 @@ mod components;
 use components::{FormatOptions, NumericInput};
 
 mod simulator;
-use simulator::{CompoundingInterestStyle};
+use simulator::{CompoundingInterestStyle,run_simulator,SimulatorParameters};
 
 
 fn main() {
@@ -67,7 +68,6 @@ fn LabelData(label : String, data : String) -> Element {
         div {  
             class : "w-fit",
             h3 {
-                class: "gay",
                 "{label}"
             }
             p { 
@@ -80,6 +80,48 @@ fn LabelData(label : String, data : String) -> Element {
 
 #[component]
 fn Results(house_results : Signal<Option<HouseResults>>, hodl_results: Signal<Option<HodlResults>>) -> Element {
+
+    let house_node = match house_results() {
+        Some(r) => {
+            rsx!{
+                div { 
+                    class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
+                    LabelData { label:"Average Monthly Payments", data:"{r.monthly_payments:.2}"  }
+                    LabelData { label:"Total paid to Interest", data:"{r.total_paid_to_interest:0.2}"  }
+                    LabelData { label:"Total spend", data:"{(r.total_paid_to_interest + r.total_paid_to_principal):0.2}"  }
+                    LabelData { label:"Resulting Equity", data:"One House"  }
+                }
+            }
+        }
+        None => {
+            rsx!{
+                h3 {
+                    "Computing"
+                }
+            }
+        }
+    };
+
+    let hodl_node = match hodl_results() {
+        Some(r) => {
+            rsx!{
+                div { 
+                    class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
+                    LabelData { label:"Average Monthly Payments", data:"1000.0"  }
+                    LabelData { label:"Total paid to Rent", data:"150.00"  }
+                    LabelData { label:"Total paid to Principal", data:"150.00"  }
+                }
+            }
+        }
+        None => {
+            rsx!{
+                h3 {
+                    "Computing"
+                }
+            }
+        }
+    };
+    
     rsx!{
         div {
             h1 { class: "text-2xl text-center","Results" }
@@ -90,12 +132,7 @@ fn Results(house_results : Signal<Option<HouseResults>>, hodl_results: Signal<Op
                 class : "text-xl",
                 "House Ownership" 
             }
-            div { 
-                class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
-                LabelData { label:"Average Monthly Payments", data:"2750.00"  }
-                LabelData { label:"Total paid to Interest", data:"150.00"  }
-                LabelData { label:"Total paid to Principal", data:"150.00"  }
-            }
+            {house_node}
         }
         div {
             class : "p-3",
@@ -103,12 +140,7 @@ fn Results(house_results : Signal<Option<HouseResults>>, hodl_results: Signal<Op
                 class : "text-xl",
                 "Stock Market" 
             }
-            div { 
-                class : "grid gap-3 grid-cols-[repeat(auto-fit,minmax(10rem,1fr))]",
-                LabelData { label:"Average Monthly Payments", data:"1000.0"  }
-                LabelData { label:"Total paid to Rent", data:"150.00"  }
-                LabelData { label:"Total paid to Principal", data:"150.00"  }
-            }
+            {hodl_node}
         }
     }
 }
@@ -118,9 +150,11 @@ fn Hodl(term_years: Signal<f64>, hodl_results : Signal<Option<HodlResults>>) -> 
     
     let per_month = use_signal(||1000.0);
     let annual_interest = use_signal(|| 7.1);
+    let monthly_rent = use_signal(|| 1700.0);
 
     use_effect(move || {
-        tracing::debug!("Recalculating Hodl based on {per_month} {annual_interest} {term_years}");
+        tracing::debug!("Recalculating Hodl based on {per_month} {annual_interest} {term_years} {monthly_rent}");
+
         *hodl_results.write() = Some( HodlResults { 
             total_paid_to_rent: 50025.2, 
             annual_interest: 5.2 
@@ -134,21 +168,32 @@ fn Hodl(term_years: Signal<f64>, hodl_results : Signal<Option<HodlResults>>) -> 
                 "Hodl"
             }
             div {
-                class: "mt-3 flex flex-col gap-4",
-                NumericInput {
-                    label: "Per Month Investment".to_string(),
-                    value: per_month,
-                    format: FormatOptions::float(0.0, 10000000.0),
+                class: "flex flex-row justify-around",
+                div {
+                    class: "mt-3 flex flex-col gap-4",
+                    NumericInput {
+                        label: "Per Month Investment".to_string(),
+                        value: per_month,
+                        format: FormatOptions::float(0.0, 10000000.0),
+                    }
+                    NumericInput {
+                        label: "Annual Interest (%)".to_string(),
+                        value: annual_interest,
+                        format: FormatOptions::float(0.0, 40.0),
+                    }
+                    NumericInput {
+                        label: "Term (Years)".to_string(),
+                        value: term_years,
+                        format: FormatOptions::integer(1.0, 50.0),
+                    }
                 }
-                NumericInput {
-                    label: "Annual Interest (%)".to_string(),
-                    value: annual_interest,
-                    format: FormatOptions::float(0.0, 40.0),
-                }
-                NumericInput {
-                    label: "Term (Years)".to_string(),
-                    value: term_years,
-                    format: FormatOptions::integer(1.0, 50.0),
+                div {
+                    class : "mt-3 flex flex-col gap-4",
+                    NumericInput {
+                        label: "Monthly Rent".to_string(),
+                        value: monthly_rent,
+                        format: FormatOptions::float(0.0, 10000000.0),
+                    }
                 }
             }
         }
@@ -164,11 +209,26 @@ fn House(term_years: Signal<f64>, house_results : Signal<Option<HouseResults>>) 
 
     use_effect(move || {
         tracing::debug!("Recalculating House based on {mortgage} {annual_interest} {interest_method:?} {term_years}");
-        *house_results.write() = Some(HouseResults{
-            monthly_payments: 2600.52,
-            total_paid_to_principal: 305122.50,
-            total_paid_to_interest: 12533.5
-        })
+
+        if let Ok(params) = SimulatorParameters::new(mortgage(), annual_interest(), term_years().trunc() as u32, interest_method()){
+            let res = run_simulator(params);
+            
+            let total_paid_to_principal = res
+            .timeline
+            .iter()
+            .fold(0.0,|acc, e| acc + e.amount_paid_to_principal);
+
+            let total_paid_to_interest = res
+            .timeline
+            .iter()
+            .fold(0.0,|acc, e| acc + e.amount_paid_to_interest);
+
+            *house_results.write() = Some(HouseResults{
+                monthly_payments: res.monthly_payment,
+                total_paid_to_principal: total_paid_to_principal,
+                total_paid_to_interest: total_paid_to_interest
+            })
+        }
     });
 
     rsx!{
