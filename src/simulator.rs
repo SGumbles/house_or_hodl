@@ -1,6 +1,8 @@
 use core::f64;
 
-#[derive(Debug, Clone)]
+use dioxus::html::param;
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum CompoundingInterestStyle {
     American,
     Canadian,
@@ -16,8 +18,9 @@ fn compute_monthly_interest_rate(
             (1.0 + (annual_interest_rate / 100.0 / 2.0)).powf(1.0 / 6.0) - 1.0
         }
         CompoundingInterestStyle::American => annual_interest_rate / 100.0 / 12.0,
+        // Use NOMINAL rate
         CompoundingInterestStyle::Fair => {
-            (1.0 + (annual_interest_rate / 100.0 / 2.0)).powf(1.0 / 12.0) - 1.0
+            annual_interest_rate / 100.0 / 12.0
         }
     }
 }
@@ -130,19 +133,24 @@ pub enum SimulatorError {
     InvalidParameter,
 }
 
-pub struct SimulatorParameters {
-    mortgage: f64,
-    annual_interest_rate: f64,
-    term_length_years: u32,
-    compounding_style: CompoundingInterestStyle,
+#[derive(Clone,PartialEq,Debug)]
+pub struct HouseSimulatorParameters {
+    pub mortgage: f64,
+    pub annual_interest_rate: f64,
+    pub term_length_years: u32,
+    pub compounding_style: CompoundingInterestStyle,
+    pub monthly_expenses: f64,
+    pub total_renovation: f64,
 }
 
-impl SimulatorParameters {
+impl HouseSimulatorParameters {
     pub fn new(
         mortgage: f64,
         annual_interest_rate: f64,
         term_length_years: u32,
         compounding_style: CompoundingInterestStyle,
+        monthly_expenses: f64,
+        total_renovation: f64,
     ) -> Result<Self, SimulatorError> {
         if mortgage < 100.0 || mortgage > 1.0e9 {
             return Err(SimulatorError::InvalidParameter);
@@ -153,28 +161,38 @@ impl SimulatorParameters {
         if annual_interest_rate < 0.0 || annual_interest_rate > 50.0 {
             return Err(SimulatorError::InvalidParameter);
         }
+        if monthly_expenses < 0.0 {
+            return Err(SimulatorError::InvalidParameter);
+        }
+        if total_renovation < 0.0 {
+            return Err(SimulatorError::InvalidParameter);
+        }
         Ok(Self {
             mortgage,
             annual_interest_rate,
             term_length_years,
             compounding_style,
+            monthly_expenses,
+            total_renovation,
         })
     }
 }
 
-pub struct SimulatorResults {
+pub struct HousingSimulatorResults {
     pub monthly_payment: f64,
-    pub timeline: Vec<MonthlyRecord>,
+    pub total_expenses: f64,
+    pub total_renovation: f64,
+    pub timeline: Vec<MonthlyHousingRecord>,
 }
 
 #[derive(Debug)]
-pub struct MonthlyRecord {
+pub struct MonthlyHousingRecord {
     pub amount_paid_to_principal: f64,
     pub amount_paid_to_interest: f64,
     pub remaining_principal: f64,
 }
 
-pub fn run_simulator(params: SimulatorParameters) -> SimulatorResults {
+pub fn run_house_simulator(params: HouseSimulatorParameters) -> HousingSimulatorResults {
     let monthly_payment = compute_monthly_payments(
         params.mortgage,
         params.annual_interest_rate,
@@ -184,7 +202,7 @@ pub fn run_simulator(params: SimulatorParameters) -> SimulatorResults {
     let monthly_interest =
         compute_monthly_interest_rate(params.annual_interest_rate, &params.compounding_style);
 
-    let mut timeline = Vec::<MonthlyRecord>::new();
+    let mut timeline = Vec::<MonthlyHousingRecord>::new();
 
     let mut remaining_principal = params.mortgage;
     let mut month = 1;
@@ -193,7 +211,7 @@ pub fn run_simulator(params: SimulatorParameters) -> SimulatorResults {
         let amount_paid_to_principal =
             (monthly_payment - amount_paid_to_interest).min(remaining_principal);
         remaining_principal = (remaining_principal - amount_paid_to_principal).max(0.0);
-        timeline.push(MonthlyRecord {
+        timeline.push(MonthlyHousingRecord {
             amount_paid_to_principal,
             amount_paid_to_interest,
             remaining_principal,
@@ -204,9 +222,93 @@ pub fn run_simulator(params: SimulatorParameters) -> SimulatorResults {
             month = month + 1;
         }
     }
-    SimulatorResults {
-        monthly_payment: monthly_payment,
+    let total_expenses = params.monthly_expenses * (params.term_length_years as f64) * 12.0;
+
+    HousingSimulatorResults {
+        monthly_payment,
+        total_expenses,
+        total_renovation: params.total_renovation,
         timeline,
+    }
+}
+
+
+
+pub struct StockSimulatorParameters {
+    monthly_investment: f64,
+    rent: f64,
+    term_length_years: u32,
+    annual_interest_rate: f64,
+}
+
+impl StockSimulatorParameters {
+    pub fn new(
+        monthly_investment: f64,
+        rent: f64,
+        term_length_years: u32,
+        annual_interest_rate: f64,
+    ) -> Result<Self, SimulatorError> {
+        if monthly_investment < 0.0 {
+            return Err(SimulatorError::InvalidParameter);
+        }
+        if rent < 0.0 {
+            return Err(SimulatorError::InvalidParameter);
+        }
+        if annual_interest_rate < 0.0 || annual_interest_rate > 50.0 {
+            return Err(SimulatorError::InvalidParameter);
+        }
+        Ok(Self {
+            monthly_investment,
+            rent,
+            term_length_years,
+            annual_interest_rate,
+        })
+    }
+}
+
+pub struct StockSimulatorResults {
+    pub timeline: Vec<MonthlyStockRecord>,
+}
+
+pub struct MonthlyStockRecord {
+    pub total_portfolio : f64,
+    pub total_rent : f64,
+    pub amount_invested : f64,
+    pub amount_on_rent : f64
+}
+
+pub fn run_stock_simulator(params: StockSimulatorParameters) -> StockSimulatorResults {
+    let monthly_interest =
+        compute_monthly_interest_rate(params.annual_interest_rate, &CompoundingInterestStyle::Fair);
+
+    let mut timeline = Vec::<MonthlyStockRecord>::new();
+    
+    let mut month = 0;
+    let mut total_portfolio = 0.0;
+    let mut total_rent = 0.0;
+
+    loop {
+        // Think of this as at the start of the month
+        month = month + 1;
+        total_portfolio = total_portfolio + (total_portfolio * monthly_interest);
+        total_rent = total_rent + params.rent;
+
+        // Then at the end of the month
+        total_portfolio = total_portfolio + params.monthly_investment;
+
+        timeline.push(MonthlyStockRecord {
+            total_portfolio,
+            total_rent,
+            amount_invested : params.monthly_investment,
+            amount_on_rent : params.rent
+        });
+
+        if month >= (params.term_length_years * 12) {
+            break;
+        }
+    }
+    StockSimulatorResults {
+        timeline
     }
 }
 
@@ -233,11 +335,13 @@ mod tests {
 
     #[test]
     fn simple_payment_test() {
-        let r = run_simulator(SimulatorParameters {
+        let r = run_house_simulator(HouseSimulatorParameters {
             mortgage: 500000.0,
             annual_interest_rate: 5.25,
             term_length_years: 25,
             compounding_style: CompoundingInterestStyle::Canadian,
+            monthly_expenses: 0.0,
+            total_renovation: 0.0,
         });
         assert!(match r.monthly_payment {
             2979.0..2981.0 => true,
@@ -247,11 +351,13 @@ mod tests {
 
     #[test]
     fn crazy_small_mortgage_test() {
-        let r = run_simulator(SimulatorParameters {
+        let r = run_house_simulator(HouseSimulatorParameters {
             mortgage: 25.0,
             annual_interest_rate: 5.1,
             term_length_years: 10,
             compounding_style: CompoundingInterestStyle::Canadian,
+            monthly_expenses: 0.0,
+            total_renovation: 0.0,
         });
         assert!(match r.monthly_payment {
             0.25..0.27 => true,
